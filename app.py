@@ -174,40 +174,78 @@ def recalc_metrics(row: pd.Series) -> pd.Series:
 
 def main():
     st.set_page_config(page_title='Dashboard de Equipamentos', layout='wide')
-    # Apply custom styles for brand colours
+    # Estilo customizado com gradiente, cards e visual profissional
     st.markdown(
         """
         <style>
-        :root {
-            --primary-color: #f4c247;    /* yellow from logo */
-            --secondary-color: #64766A;  /* grey tone from logo */
-            --tertiary-color: #00A85E;   /* green for positive status */
-            --danger-color: #d9534f;     /* red for negative status */
-        }
-        .reportview-container .main .block-container{
-            padding-top: 1rem;
+        body, .reportview-container .main .block-container {
+            background: linear-gradient(135deg, #232526 0%, #232526 100%);
+            color: #f4f4f4;
         }
         .stButton>button {
-            background-color: var(--primary-color);
-            color: white;
-            border: None;
-            padding: 0.4rem 1rem;
-            border-radius: 4px;
+            background: linear-gradient(90deg, #f4c247 0%, #00A85E 100%);
+            color: #232526;
+            font-weight: bold;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
         }
         .stButton>button:hover {
             opacity: 0.85;
+        }
+        .status-cell {
+            font-weight: bold;
+            color: white;
+            border-radius: 6px;
+            padding: 4px 12px;
+            font-size: 1rem;
+            box-shadow: 0 2px 8px #23252633;
+        }
+        .status-conforme {
+            background: linear-gradient(90deg, #00A85E 60%, #4fd953 100%);
+        }
+        .status-nc {
+            background: linear-gradient(90deg, #d9534f 60%, #f44336 100%);
+        }
+        .status-aten {
+            background: linear-gradient(90deg, #f4c247 60%, #ffe066 100%);
+            color: #232526;
+        }
+        .card {
+            background: #232526;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px #00000022;
+            padding: 1.2rem;
+            margin-bottom: 1.2rem;
+        }
+        .table-prof {
+            border-radius: 10px;
+            overflow: hidden;
+            font-size: 1rem;
+        }
+        th, td {
+            padding: 8px 12px !important;
+        }
+        th {
+            background: #2c2f33;
+            color: #f4c247;
+        }
+        tr {
+            background: #232526;
+        }
+        tr:nth-child(even) {
+            background: #2c2f33;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    # Session state for login
+    # Controle de login
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
         st.session_state.role = None
-
-    # Login form
     if not st.session_state.logged_in:
         st.sidebar.image(LOGO_FILE, use_column_width=True)
         st.sidebar.title('Login')
@@ -223,32 +261,25 @@ def main():
                 st.sidebar.error('Usuário ou senha inválidos')
         st.stop()
 
-    # Load data
+    # Carregar dados
     df = load_data().copy()
 
-    # Header with logo and title
-    cols = st.columns([1, 4])
-    with cols[0]:
-        st.image(LOGO_FILE, use_column_width=True)
-    with cols[1]:
-        st.markdown("## Dashboard de Equipamentos")
+    # Header com logo e título
+    st.markdown('<div style="display:flex;align-items:center;gap:1.5rem;"><img src="download.png" style="height:60px;"> <h1 style="color:#f4c247;">Dashboard de Equipamentos</h1></div>', unsafe_allow_html=True)
 
-    # Sidebar navigation
+    # Navegação lateral
     menu_options = ['Dashboard', 'Lançar Notas Qualitativas', 'Relatórios']
     if st.session_state.role == 'admin':
         menu_options.append('Admin: Importar Dados')
     choice = st.sidebar.radio('Menu', menu_options)
 
-    # Dashboard page
+    # Dashboard principal
     if choice == 'Dashboard':
-        st.subheader('Visão Geral')
-        # Filters for dashboard
-        with st.expander('Filtros'):
+        with st.expander('Filtros', expanded=True):
             filtro_complexo = st.multiselect('Complexo', options=sorted(df['complexo'].dropna().unique()))
             filtro_local = st.multiselect('Local', options=sorted(df['Local'].dropna().unique()))
             filtro_sistema = st.multiselect('Sistema', options=sorted(df['Sistema'].dropna().unique()))
             filtro_fabricante = st.multiselect('Fabricante', options=sorted(df['Modelo'].dropna().unique()))
-        # Apply filters
         filtered_df = df.copy()
         if filtro_complexo:
             filtered_df = filtered_df[filtered_df['complexo'].isin(filtro_complexo)]
@@ -259,69 +290,122 @@ def main():
         if filtro_fabricante:
             filtered_df = filtered_df[filtered_df['Modelo'].isin(filtro_fabricante)]
 
-        # Status counts
+        # Cards de métricas principais
+        m1, m2, m3 = st.columns(3)
         status_counts = filtered_df['Computed_Status'].value_counts().to_dict()
         conforme = status_counts.get('CONFORME', 0)
         nao_conforme = status_counts.get('NÃO CONFORME', 0)
-        metric_cols = st.columns(2)
-        metric_cols[0].metric('Equipamentos CONFORME', conforme)
-        metric_cols[1].metric('Equipamentos NÃO CONFORME', nao_conforme)
+        pendentes = filtered_df[filtered_df['nota_qualitativa'].isna() | filtered_df['nota_quantitativa'].isna()]
+        m1.metric('Equipamentos CONFORME', conforme)
+        m2.metric('Equipamentos NÃO CONFORME', nao_conforme)
+        m3.metric('Pendentes de Nota', len(pendentes))
 
-        # Chart: Equipamentos por Complexo e Status
-        chart_data = filtered_df.groupby(['complexo', 'Computed_Status']).size().reset_index(name='count')
-        chart = (alt.Chart(chart_data)
-                 .mark_bar()
-                 .encode(
-                     x=alt.X('complexo:N', title='Complexo'),
-                     y=alt.Y('count:Q', title='Número de Equipamentos'),
-                     color=alt.Color('Computed_Status:N', title='Status',
-                                    scale=alt.Scale(domain=['CONFORME', 'NÃO CONFORME'],
-                                                    range=['#00A85E', '#d9534f'])),
-                     tooltip=['complexo', 'Computed_Status', 'count']
-                 )
-                 .properties(title='Distribuição de Status por Complexo', height=400)
-                 )
-        st.altair_chart(chart, use_container_width=True)
+        # 1. Descrição dos equipamentos
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">1. Descrição dos Equipamentos</h2>' +
+            filtered_df[['complexo', 'Local', 'TAG', 'Sistema', 'Modelo']].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
 
-        # Table: Equipamentos sem notas qualitativas completas
-        st.subheader('Equipamentos com notas qualitativas pendentes')
-        missing_mask = filtered_df[['layout_sensores_cabo', 'layout_bicos_mangueiras', 'layout_painel_cabine', 'nota_qualitativa']].isna().any(axis=1)
-        missing_df = filtered_df[missing_mask][['complexo', 'Local', 'TAG', 'Computed_Status',
-                                        'layout_sensores_cabo', 'layout_bicos_mangueiras',
-                                        'layout_painel_cabine', 'nota_qualitativa']]
-        st.dataframe(missing_df, use_container_width=True)
+        # 2. Status dos agentes extintores
+        def status_cell(val):
+            if val == 'CONFORME':
+                return '<span class="status-cell status-conforme">✔ CONFORME</span>'
+            elif val == 'NÃO CONFORME':
+                return '<span class="status-cell status-nc">✖ NÃO CONFORME</span>'
+            else:
+                return val
+        extintores_df = filtered_df[['TAG', 'PQS_Rec_Total', 'PQS_Inst_Total', 'Liq_Rec_Total', 'Liq_Inst_Total', 'Computed_Status']].copy()
+        extintores_df['Status'] = extintores_df['Computed_Status'].apply(status_cell)
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">2. Status dos Agentes Extintores</h2>' +
+            extintores_df.to_html(escape=False, classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
 
-        # Table: Métricas de prioridade
-        st.subheader('Métricas de Prioridade')
-        priority_df = filtered_df[['complexo', 'Local', 'TAG', 'nota_quantitativa',
-                          'nota_qualitativa', 'status_final']].copy()
-        st.dataframe(priority_df.sort_values('status_final', ascending=False), use_container_width=True)
+        # 2.1 Modal para PDF do relatório
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">Relatório PDF do Equipamento</h2>', unsafe_allow_html=True)
+        tags_with_reports = filtered_df.dropna(subset=['report_id'])[['TAG', 'report_id']]
+        if not tags_with_reports.empty:
+            selected_row = st.selectbox('Selecione o equipamento (TAG):', tags_with_reports['TAG'])
+            report_id = tags_with_reports[tags_with_reports['TAG'] == selected_row]['report_id'].values[0]
+            file_id = str(report_id).strip()
+            if '_' in file_id:
+                file_id = file_id.split('_')[-1]
+            if '.' in file_id:
+                file_id = file_id.split('.')[0]
+            url = f'https://drive.google.com/file/d/{file_id}/preview'
+            st.markdown(f'<iframe src="{url}" width="900" height="500" style="border-radius:12px;border:2px solid #f4c247;"></iframe>', unsafe_allow_html=True)
+        else:
+            st.info('Nenhum relatório associado aos equipamentos selecionados.')
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Qualitative notes entry page
+        # 3. Sensores
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">3. Sensores: Recomendado vs Instalado</h2>' +
+            filtered_df[['TAG', 'layout_sensores_cabo']].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+
+        # 4. Bicos PQS
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">4. Bicos PQS: Recomendado vs Instalado</h2>' +
+            filtered_df[['TAG', 'layout_bicos_mangueiras']].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+
+        # 5. Bicos Líquidos
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">5. Bicos Líquidos: Recomendado vs Instalado</h2>' +
+            filtered_df[['TAG', 'layout_painel_cabine']].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+
+        # 6. Notas Qualitativas e Quantitativas
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">6. Notas Qualitativas e Quantitativas</h2>' +
+            filtered_df[['TAG', 'nota_quantitativa', 'nota_qualitativa', 'status_final']].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+
+        # 7. Equipamentos Pendentes de Nota
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">7. Equipamentos Pendentes de Nota</h2>' +
+            pendentes[['TAG', 'nota_quantitativa', 'nota_qualitativa']].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+
+        # 8. Observações dos Equipamentos
+        obs_col = 'observacao' if 'observacao' in filtered_df.columns else None
+        if obs_col:
+            st.markdown('<div class="card"><h2 style="color:#f4c247;">8. Observações dos Equipamentos</h2>' +
+                filtered_df[['TAG', obs_col]].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+        else:
+            st.info('Coluna de observação não encontrada.')
+
+        # 9. Notas dos Campos Comparativos
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">9. Notas dos Campos Comparativos</h2>' +
+            filtered_df[['TAG', 'nota_quantitativa', 'nota_qualitativa']].to_html(classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+
+        # 10. Status Final com Gradiente de Cor
+        def gradiente_status(val):
+            if pd.isna(val):
+                return '<span class="status-cell">N/A</span>'
+            if val <= 4:
+                return '<span class="status-cell status-nc">{}</span>'.format(val)
+            elif val <= 7:
+                return '<span class="status-cell status-aten">{}</span>'.format(val)
+            else:
+                return '<span class="status-cell status-conforme">{}</span>'.format(val)
+        grad_df = filtered_df[['TAG', 'status_final']].copy()
+        grad_df['Status Final'] = grad_df['status_final'].apply(gradiente_status)
+        st.markdown('<div class="card"><h2 style="color:#f4c247;">10. Status Final com Gradiente de Cor</h2>' +
+            grad_df[['TAG', 'Status Final']].to_html(escape=False, classes='table-prof', index=False) + '</div>', unsafe_allow_html=True)
+
+    # Página de lançamento de notas qualitativas
     elif choice == 'Lançar Notas Qualitativas':
         st.subheader('Inserir/Atualizar Notas Qualitativas')
-        # Select equipment by TAG
         selected_tag = st.selectbox('Selecione um equipamento (TAG):', df['TAG'])
         row_idx = df[df['TAG'] == selected_tag].index[0]
         row = df.loc[row_idx]
-        # Display some context
         st.markdown(f"**Complexo:** {row['complexo']} | **Local:** {row['Local']} | **Status carga:** {row['Computed_Status']}")
-        # Input fields with current values as defaults
         def_input = lambda x: 0.0 if pd.isna(x) else float(x)
         val1 = st.slider('Layout Monitoramento Sensores/Cabo Linear (1-5)', 0.0, 5.0, def_input(row['layout_sensores_cabo']), 0.5)
         val2 = st.slider('Layout Bicos e Mangueiras (1-5)', 0.0, 5.0, def_input(row['layout_bicos_mangueiras']), 0.5)
         val3 = st.slider('Layout Posicionamento Acionadores e Painel da Cabine (1-5)', 0.0, 5.0, def_input(row['layout_painel_cabine']), 0.5)
         qual = st.slider('Nota Qualitativa (1-5)', 0.0, 5.0, def_input(row.get('nota_qualitativa')), 0.5)
+        observacao = st.text_area('Observação (obrigatório)', value=row.get('observacao', ''))
         if st.button('Salvar Notas'):
-            # Update DataFrame
-            df.at[row_idx, 'layout_sensores_cabo'] = val1 if val1 > 0 else np.nan
-            df.at[row_idx, 'layout_bicos_mangueiras'] = val2 if val2 > 0 else np.nan
-            df.at[row_idx, 'layout_painel_cabine'] = val3 if val3 > 0 else np.nan
-            df.at[row_idx, 'nota_qualitativa'] = qual if qual > 0 else np.nan
-            # Recalculate notes and status
-            df.loc[row_idx] = recalc_metrics(df.loc[row_idx])
-            save_data(df)
-            st.success('Notas salvas com sucesso!')
+            if not observacao.strip():
+                st.error('Campo de observação é obrigatório!')
+            else:
+                df.at[row_idx, 'layout_sensores_cabo'] = val1 if val1 > 0 else np.nan
+                df.at[row_idx, 'layout_bicos_mangueiras'] = val2 if val2 > 0 else np.nan
+                df.at[row_idx, 'layout_painel_cabine'] = val3 if val3 > 0 else np.nan
+                df.at[row_idx, 'nota_qualitativa'] = qual if qual > 0 else np.nan
+                df.at[row_idx, 'observacao'] = observacao
+                df.loc[row_idx] = recalc_metrics(df.loc[row_idx])
+                save_data(df)
+                st.success('Notas salvas com sucesso!')
 
     # Relatórios page
     elif choice == 'Relatórios':
