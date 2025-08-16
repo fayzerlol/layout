@@ -172,7 +172,6 @@ details.
 
 import sys
 import types as Types
-from typing import Any
 import warnings
 import weakref as Weakref
 from inspect import isbuiltin, isclass, iscode, isframe, isfunction, ismethod, ismodule
@@ -193,7 +192,7 @@ _ignored_modules = {
     "types",
     Exception.__module__,  # 'weakref'
     __name__,
-}  # including this very module
+}  # inluding this very module
 
 # Sizes of some primitive C types
 # XXX len(pack(T, 0)) == Struct(T).size == calcsize(T)
@@ -2587,7 +2586,7 @@ def asized(*objs, **opts):
     return t
 
 
-def asizeof(*objs: Any, **opts: Any) -> int:
+def asizeof(*objs, **opts):
     """Return the combined size (in bytes) of all objects passed
     as positional arguments.
 

@@ -85,7 +85,6 @@ from pandas.core.dtypes.common import (
     is_numeric_dtype,
     is_object_dtype,
     is_scalar,
-    is_string_dtype,
     needs_i8_conversion,
     pandas_dtype,
 )
@@ -1832,7 +1831,7 @@ class GroupBy(BaseGroupBy[NDFrameT]):
                         message=_apply_groupings_depr.format(
                             type(self).__name__, "apply"
                         ),
-                        category=FutureWarning,
+                        category=DeprecationWarning,
                         stacklevel=find_stack_level(),
                     )
             except TypeError:
@@ -1946,13 +1945,8 @@ class GroupBy(BaseGroupBy[NDFrameT]):
             # preserve the kind of exception that raised
             raise type(err)(msg) from err
 
-        dtype = ser.dtype
-        if dtype == object:
+        if ser.dtype == object:
             res_values = res_values.astype(object, copy=False)
-        elif is_string_dtype(dtype):
-            # mypy doesn't infer dtype is an ExtensionDtype
-            string_array_cls = dtype.construct_array_type()  # type: ignore[union-attr]
-            res_values = string_array_cls._from_sequence(res_values, dtype=dtype)
 
         # If we are DataFrameGroupBy and went through a SeriesGroupByPath
         # then we need to reshape
@@ -4400,9 +4394,9 @@ class GroupBy(BaseGroupBy[NDFrameT]):
         starts, ends = lib.generate_slices(splitter._slabels, splitter.ngroups)
 
         def pre_processor(vals: ArrayLike) -> tuple[np.ndarray, DtypeObj | None]:
-            if isinstance(vals.dtype, StringDtype) or is_object_dtype(vals.dtype):
+            if is_object_dtype(vals.dtype):
                 raise TypeError(
-                    f"dtype '{vals.dtype}' does not support operation 'quantile'"
+                    "'quantile' cannot be performed against 'object' dtypes!"
                 )
 
             inference: DtypeObj | None = None
