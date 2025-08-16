@@ -395,7 +395,7 @@ def main():
         qual = st.slider('Nota Qualitativa (1-5)', 0.0, 5.0, def_input(row.get('nota_qualitativa')), 0.5)
         observacao = st.text_area('Observação (obrigatório)', value=row.get('observacao', ''))
         if st.button('Salvar Notas'):
-            if not observacao.strip():
+            if not (observacao or '').strip():
                 st.error('Campo de observação é obrigatório!')
             else:
                 df.at[row_idx, 'layout_sensores_cabo'] = val1 if val1 > 0 else np.nan
@@ -444,7 +444,7 @@ def main():
                 file_id = file_id.split('.')[0]
             # Build Google Drive preview URL
             url = f'https://drive.google.com/file/d/{file_id}/preview'
-            st.components.v1.iframe(url, width=700, height=500)
+            components.iframe(url, width=700, height=500)
         else:
             st.info('Nenhum relatório associado aos equipamentos selecionados.')
     # Admin upload page
