@@ -63,6 +63,7 @@ def main():
     if 'status_final' not in df.columns:
         df['status_final'] = df.get('nota_quantitativa', np.nan) + df.get('nota_qualitativa', np.nan)
     df['criticidade'] = df['status_final'].apply(criticality_from_status)
+    df['Computed_Status'] = np.where(df['criticidade'].isin(['OK', 'Atenção']), 'CONFORME', 'NÃO CONFORME')
     df['pendente'] = df[['nota_quantitativa', 'nota_qualitativa']].isna().any(axis=1)
 
     # Sidebar controls
@@ -89,7 +90,7 @@ def main():
 
     # KPIs
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(style_metric(f'Conforme: {int((df[~df["pendente"] & (df["Computed_Status"]=="CONFORME")).shape[0])}'), unsafe_allow_html=True)
+    c1.markdown(style_metric(f'Conforme: {int(df[~df["pendente"] & (df["Computed_Status"]=="CONFORME")].shape[0])}'), unsafe_allow_html=True)
     c2.markdown(style_metric(f'Não Conforme: {int((df["Computed_Status"]=="NÃO CONFORME").sum())}'), unsafe_allow_html=True)
     c3.markdown(style_metric(f'Pendentes: {int(df["pendente"].sum())}'), unsafe_allow_html=True)
     c4.markdown(style_metric(f'Total: {len(df)}'), unsafe_allow_html=True)
